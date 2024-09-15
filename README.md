@@ -1,5 +1,8 @@
 # secure-coding-javascript
 
+출처
+https://www.kisa.or.kr/2060204/form?postSeq=14&page=1
+
 ## Contents
 
 1. 입력 데이터 검증 및 표현
@@ -165,4 +168,105 @@ router.get('/patched/file', (req, res) => {
     return res.send(data);
   });
 });
+```
+
+<h3 id="1-4">1-4 XSS</h3>
+
+클라이언트측 Vanilla js 예시
+
+**Bad:**
+
+```javascript
+<html>
+  <body>
+    <script>
+      const query = "<script>alert('hello world')<"+"/script>";
+        async function req() {
+          // 사용자가 에디터와 같은 입력 폼에 입력한 데이터를 서버에 저장
+          const response = await fetch(`/vuln/search?q=${query}`, {method: 'GET' })
+          const data = await response.text();
+          // 외부로부터 받은 데이터(HTML 코드)를 아무런 검증 없이 DOM으로 기록
+          document.write(data);
+        }
+        req();
+      </script>
+  </body>
+</html>
+```
+
+**Good 1:**
+
+```javascript
+<html>
+  <body>
+    <script>
+      const query = "<script>alert('hello world')<" + '/script>';
+      async function req() {
+        const response = await fetch(`/vuln/search?q=${query}`, {
+          method: 'GET',
+        });
+        const data = await response.text();
+        // 외부로부터 받은 데이터를 이스케이프 처리 후 사용
+        document.write(decodeURI(encodeURIComponent(data)));
+      }
+      req();
+    </script>
+  </body>
+</html>
+```
+
+**Good 2 (라이브러리 사용):**
+
+```javascript
+<html>
+  <head>
+    <script src="https://cdn.rawgit.com/yahoo/xss-filters/master/dist/xss-filters.js"></script>
+  </head>
+  <body>
+    <script>
+      async function req() {
+      ...
+      // xss-filters 라이브러리를 사용해 문자열을 이스케이프 처리
+      document.write(xssFilters.inHTMLData(data));
+      }
+      req();
+    </script>
+  </body>
+</html>
+```
+
+클라이언트측 ReactJs 예시
+**Bad:**
+
+```javascript
+function possibleXSS() {
+  return {
+    __html:
+      '<img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg“ onload="alert(1)"></img> ',
+  };
+}
+const App = () => (
+  // XSS에 취약한 함수를 사용해 HTML 코드 데이터를 렌더링
+  <div dangerouslySetInnerHTML={possibleXSS()} />
+);
+ReactDOM.render(<App />, document.getElementById('root'));
+```
+
+**Good:**
+
+```javascript
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+...
+function possibleXSS() {
+ return {
+ __html:
+ // dompurify 라이브러리를 사용해 입력값을 이스케이프 처리
+ DOMPurify.sanitize('<img src="https://upload.wikimedia.org/wikipedia/commons/
+ a/a7/React-icon.svg" onload="alert(1)"></img>'),
+ };
+}
+const App = ( ) => (
+ <div dangerouslySetInnerHTML={possibleXSS()} />
+);
+ReactDOM.render(<App />, document.getElementById("root"));
 ```
